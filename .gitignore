@@ -1,0 +1,14 @@
+# Dispatch logs (live in user home, but ignore if anyone points logDir into the repo)
+.claude-dispatch/
+*.jsonl
+*.log
+
+# OS / editor
+.DS_Store
+Thumbs.db
+*.swp
+.vscode/
+.idea/
+
+# PowerShell transcripts
+PowerShell_transcript.*

@@ -1,0 +1,11 @@
+{
+  "_comment": "Tune routing without editing the script. Place next to Start-ClaudeSession.ps1. Model values accept aliases (haiku|sonnet|opus) or full IDs (e.g. claude-opus-4-8).",
+  "models": {
+    "router": "haiku",
+    "trivial": "haiku",
+    "simple": "sonnet",
+    "complex": "opus"
+  },
+  "confidenceFloor": 0.6,
+  "logDir": null
+}
