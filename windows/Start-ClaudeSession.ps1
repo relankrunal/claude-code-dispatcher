@@ -85,6 +85,11 @@ function Get-Config {
         logDir = $defaults.logDir
     }
     $cfgPath = Join-Path $PSScriptRoot 'dispatch-config.json'
+    # Fall back to the parent directory: in the repo the shared config lives one
+    # level up (root); a flat user install keeps it next to this script.
+    if (-not (Test-Path $cfgPath)) {
+        $cfgPath = Join-Path (Split-Path $PSScriptRoot -Parent) 'dispatch-config.json'
+    }
     if (Test-Path $cfgPath) {
         try {
             $json = Get-Content $cfgPath -Raw | ConvertFrom-Json

@@ -12,6 +12,10 @@ ccs "investigate the intermittent deadlock on save"   # -> Opus    (hard problem
 
 One command replaces `claude` + a manual `/model` guess. Right model, no thinking about it.
 
+Works on **Windows** (PowerShell) and **macOS/Linux** (Bash) — same logic, same config file, separate launcher scripts per platform.
+
+> **Repo layout:** Windows users use the files in **`windows/`**, macOS/Linux users use the files in **`unix/`**, and both platforms share the single **`dispatch-config.json`** at the repo root.
+
 ---
 
 ## Table of contents
@@ -86,9 +90,10 @@ Before installing this tool, you need these working **first**:
 
 | Requirement | How to check | If missing |
 |-------------|--------------|------------|
-| **Windows PowerShell** (5.1+) or **PowerShell 7** | Open the Start menu, search "PowerShell" | Built into Windows 10/11. For PS7: `winget install Microsoft.PowerShell` |
-| **Claude Code CLI** installed and working | Run `claude --version` in PowerShell | Install Node.js 18+, then `npm install -g @anthropic-ai/claude-code`. See Anthropic's docs. |
+| **A shell:** Windows PowerShell 5.1+/PowerShell 7, **or** Bash (macOS/Linux) | Windows: search "PowerShell". macOS/Linux: `bash --version` | PowerShell is built into Windows. Bash ships with macOS/Linux. |
+| **Claude Code CLI** installed and working | Run `claude --version` | Install Node.js 18+, then `npm install -g @anthropic-ai/claude-code`. See Anthropic's docs. |
 | **You can run `claude` on its own** | Run `claude` in a project, confirm it opens | Fix your Claude Code install/login before continuing |
+| **`jq`** *(macOS/Linux only, optional)* | `jq --version` | `brew install jq` / `sudo apt install jq`. Not required — the Bash scripts fall back to a built-in parser if `jq` is absent. |
 
 > **Important:** this tool is a *wrapper* around Claude Code. It does not install or
 > replace Claude Code — it assumes `claude` already works. If `claude --version` fails,
@@ -101,17 +106,21 @@ Use **PowerShell**, not Command Prompt (`cmd.exe`). These are `.ps1` scripts and
 
 ## Install (one-time, about 5 minutes)
 
+> **Windows / PowerShell** below. On **macOS or Linux**, skip to
+> [Install on macOS/Linux](#install-on-macoslinux).
+
 ### Step 1 — Put the files in a permanent location
 
-Create a folder that you will NOT delete, and copy the files in. Recommended:
+Create a folder that you will NOT delete, and copy the **contents of `windows/`**
+**plus** the root **`dispatch-config.json`** into it. Recommended:
 
 ```
 C:\tools\claude-dispatch\
-├── Start-ClaudeSession.ps1
-├── Get-RoutingStats.ps1
-├── dispatch-config.json
+├── Start-ClaudeSession.ps1        (from windows/)
+├── Get-RoutingStats.ps1           (from windows/)
+├── dispatch-config.json           (from the repo root — shared by both platforms)
 └── hooks\
-    └── model-advisor-hook.ps1
+    └── model-advisor-hook.ps1     (from windows/hooks/)
 ```
 
 > Keep `Start-ClaudeSession.ps1` and `dispatch-config.json` **in the same folder** —
@@ -169,7 +178,69 @@ recheck Step 3 (path correct? saved?) and Step 4.
 
 ---
 
-## What happens when you run it (end to end)
+## Install on macOS/Linux
+
+Same idea as Windows, using the Bash scripts (`start-claude-session.sh`,
+`get-routing-stats.sh`) instead of the `.ps1` files.
+
+### Step 1 — Put the files in a permanent location
+
+Copy the **contents of `unix/`** **plus** the root **`dispatch-config.json`** into it:
+
+```bash
+mkdir -p ~/tools/claude-dispatch
+# from unix/:  start-claude-session.sh, get-routing-stats.sh, hooks/model-advisor-hook.sh
+# from root:   dispatch-config.json   (shared by both platforms)
+```
+
+Keep `start-claude-session.sh` and `dispatch-config.json` **in the same folder** —
+the script reads its config from its own directory.
+
+### Step 2 — Make the scripts executable
+
+```bash
+chmod +x ~/tools/claude-dispatch/start-claude-session.sh
+chmod +x ~/tools/claude-dispatch/get-routing-stats.sh
+```
+
+### Step 3 — Add the `ccs` alias to your shell profile
+
+For **zsh** (default on macOS), edit `~/.zshrc`; for **bash**, edit `~/.bashrc`:
+
+```bash
+ccs()   { "$HOME/tools/claude-dispatch/start-claude-session.sh" "$@"; }
+ccrep() { "$HOME/tools/claude-dispatch/get-routing-stats.sh" "$@"; }
+```
+
+### Step 4 — Reload your profile
+
+```bash
+source ~/.zshrc      # or: source ~/.bashrc
+```
+
+### Step 5 — Verify
+
+```bash
+ccs --dry-run "what does the AuthMiddleware class do?"
+```
+
+You should see `[dispatch] TRIVIAL (conf 0.88) -> haiku` **without** a session
+launching. If `ccs` isn't found, recheck Step 3 and reload.
+
+> **Note on `jq`:** the Bash scripts use `jq` if it's installed (cleanest JSON
+> parsing) and fall back to a built-in parser if not. Installing it is optional:
+> `brew install jq` or `sudo apt install jq`.
+
+**Usage is identical to Windows**, just with Bash-style flags:
+
+```bash
+ccs "investigate the intermittent deadlock on save"   # COMPLEX -> opus
+ccs -m opus "anything"                                # force a model
+ccs "!sonnet rename getUserData"                       # inline force
+ccs --dry-run "some task"                             # show decision only
+ccrep --since 2026-06-01                              # routing report
+```
+
 
 A complete, real session from start to finish:
 
@@ -312,8 +383,9 @@ ratios: `ccrep -OpusWeight 1.0 -SonnetWeight 0.2 -HaikuWeight 0.05`.
 
 ## Optional: the safety-net hook
 
-For people who launch `claude` directly instead of `ccs`, `hooks/model-advisor-hook.ps1`
-checks the **first prompt only** and prints a suggestion (e.g. `consider /model opus`)
+For people who launch `claude` directly instead of `ccs`, the hook
+(`windows/hooks/model-advisor-hook.ps1` on Windows, `unix/hooks/model-advisor-hook.sh`
+on macOS/Linux) checks the **first prompt only** and prints a suggestion (e.g. `consider /model opus`)
 if the active model looks wrong for the task. It never auto-switches and goes silent
 after the first prompt.
 
@@ -332,7 +404,14 @@ This is **per project**, registered in that project's `.claude/settings.json`:
 }
 ```
 
-1. Copy `model-advisor-hook.ps1` into the project at `.claude/hooks/`.
+On **macOS/Linux**, use the Bash hook instead — same JSON, but the command line is:
+
+```json
+"command": "bash .claude/hooks/model-advisor-hook.sh"
+```
+
+1. Copy the hook into the project at `.claude/hooks/` (from `windows/hooks/model-advisor-hook.ps1`
+   on Windows, from `unix/hooks/model-advisor-hook.sh` on macOS/Linux).
 2. Add the JSON above to `.claude/settings.json` (merge if the file already exists).
 3. Commit both so teammates inherit it on pull.
 4. Restart Claude Code; verify with `claude --debug`.
@@ -381,7 +460,9 @@ One Haiku call per session — fractions of a cent and about a second — regard
 Yes: `ccs -Model opus "..."` or the inline prefix `ccs "!opus ..."`.
 
 **Does this work on macOS/Linux?**
-The scripts are PowerShell. PowerShell 7 runs on macOS/Linux, but the install paths and profile examples here are Windows-flavored. The same logic could be ported to a shell script if needed.
+Yes. Use the Bash scripts in `unix/` (`start-claude-session.sh`, `get-routing-stats.sh`,
+`hooks/model-advisor-hook.sh`) instead of the PowerShell ones in `windows/` — same logic,
+same root `dispatch-config.json`. See [Install on macOS/Linux](#install-on-macoslinux).
 
 ---
 
@@ -389,7 +470,8 @@ The scripts are PowerShell. PowerShell 7 runs on macOS/Linux, but the install pa
 
 - This is for **Claude Code only**. Some other coding assistants already ship native
   task-based model selection; Claude Code does not yet, which is the gap this fills.
-- **PowerShell 5.1 and 7 both work** — no version-specific syntax is used.
+- **Cross-platform** — PowerShell 5.1/7 on Windows, Bash on macOS/Linux. No
+  version-specific syntax; the Bash scripts work with or without `jq`.
 - **`claude` must be on PATH** — the launcher checks and errors clearly if not.
 - **Model aliases vs IDs** — Claude Code resolves `opus/sonnet/haiku` to current
   versions; pin full IDs in config if you need determinism across a team.
